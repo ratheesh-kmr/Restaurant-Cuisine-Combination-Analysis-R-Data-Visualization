@@ -5,6 +5,12 @@ const csvFile = "zomato.csv";
 const jsonFile = "locations.json";
 
 function processCSV() {
+    // Check if JSON file already exists
+    if (fs.existsSync(jsonFile)) {
+        console.log(`Skipping processing. ${jsonFile} already exists.`);
+        return;
+    }
+
     if (!fs.existsSync(csvFile)) {
         console.log(`File ${csvFile} not found.`);
         return;
@@ -15,8 +21,8 @@ function processCSV() {
     fs.createReadStream(csvFile)
         .pipe(csv())
         .on("data", (row) => {
-            if (row.location) {
-                locations.add(row.location.trim());
+            if (row.City) {
+                locations.add(row.City.trim());
             }
         })
         .on("end", () => {

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import processCSV from './middlewares/processZomatoCSV.js';
+import router from './routes/appRoutes.js';
 
 dotenv.config();
 
@@ -15,9 +16,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.get('/', (req, res) => {
-    res.send('Hello World!');
-});
+app.use(router);
 
 app.listen(port, () => {
     console.log(`Example app listening at http://localhost:${port}`);
