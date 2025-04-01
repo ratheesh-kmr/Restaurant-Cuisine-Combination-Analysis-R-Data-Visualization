@@ -1,12 +1,14 @@
 import express from 'express';
-import processCSV from './middlewares/processZomatoCSV.js';
+import cors from 'cors';
 import dotenv from 'dotenv';
+import processCSV from './middlewares/processZomatoCSV.js';
+
+dotenv.config();
 
 const app = express();
 const port = 3000;
-dotenv.config();
 
-app.use('/', router);
+processCSV();
 
 app.use(cors({
   origin: true,
