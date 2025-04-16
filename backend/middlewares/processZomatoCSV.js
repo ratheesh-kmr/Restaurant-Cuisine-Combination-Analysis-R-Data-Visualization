@@ -2,33 +2,44 @@ import fs from "fs";
 import csv from "csv-parser";
 
 const csvFile = "zomato.csv";
-const jsonFile = "locations.json";
+const outputFile = "places_by_city.json";
 
 function processCSV() {
-    // Check if JSON file already exists
-    if (fs.existsSync(jsonFile)) {
-        console.log(`Skipping processing. ${jsonFile} already exists.`);
-        return;
-    }
+  if (fs.existsSync(outputFile)) {
+    console.log(`Skipping processing. ${outputFile} already exists.`);
+    return;
+  }
 
-    if (!fs.existsSync(csvFile)) {
-        console.log(`File ${csvFile} not found.`);
-        return;
-    }
+  if (!fs.existsSync(csvFile)) {
+    console.log(`File ${csvFile} not found.`);
+    return;
+  }
 
-    const locations = new Set();
+  const placesByCity = {};
 
-    fs.createReadStream(csvFile)
-        .pipe(csv())
-        .on("data", (row) => {
-            if (row.City) {
-                locations.add(row.City.trim());
-            }
-        })
-        .on("end", () => {
-            fs.writeFileSync(jsonFile, JSON.stringify([...locations], null, 2));
-            console.log(`Distinct locations saved to ${jsonFile}`);
-        });
+  fs.createReadStream(csvFile)
+    .pipe(csv())
+    .on("data", (row) => {
+      const area = row.Area?.trim();
+      if (area && area.includes(",")) {
+        const [placeRaw, cityRaw] = area.split(",").map((s) => s.trim());
+        if (placeRaw && cityRaw) {
+          if (!placesByCity[cityRaw]) {
+            placesByCity[cityRaw] = new Set();
+          }
+          placesByCity[cityRaw].add(placeRaw);
+        }
+      }
+    })
+    .on("end", () => {
+      const finalOutput = {};
+      for (const city in placesByCity) {
+        finalOutput[city] = [...placesByCity[city]];
+      }
+
+      fs.writeFileSync(outputFile, JSON.stringify(finalOutput, null, 2));
+      console.log(`Saved places grouped by city to ${outputFile}`);
+    });
 }
 
 export default processCSV;
