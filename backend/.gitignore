@@ -1,5 +1,11 @@
+# Dependencies
 node_modules
 
+# Environmental variables
 .env
 
+# Dataset
 zomato.csv
+
+# Location options file
+places_by_city.json

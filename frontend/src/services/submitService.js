@@ -3,9 +3,8 @@ export const submitLocation = async (city, place) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "body": JSON.stringify({ location: `${place}, ${city}` })
       },
-      body: JSON.stringify({ city, place }),
+      body: JSON.stringify({ location: `${place}, ${city}` })
     });
   
     if (!response.ok) {
