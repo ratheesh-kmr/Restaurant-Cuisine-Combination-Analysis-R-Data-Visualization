@@ -1,5 +1,4 @@
 import { exec } from "child_process";
-import path from "path";
 
 export const handleLocationSubmit = (req, res) => {
   const { location } = req.body;
@@ -7,7 +6,7 @@ export const handleLocationSubmit = (req, res) => {
     return res.status(400).json({ error: "Area is required" });
   }
 
-  const rScriptPath = "../models/CuisineAnalysisModel.R";
+  const rScriptPath = "./models/CuisineAnalysisModel.R";
 
   exec(`Rscript "${rScriptPath}" "${location}"`, (error, stdout, stderr) => {
     if (error) {

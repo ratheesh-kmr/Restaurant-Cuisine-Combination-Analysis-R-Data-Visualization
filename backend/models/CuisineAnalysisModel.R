@@ -7,27 +7,27 @@ if (length(args) == 0) {
 location <- args[1]
 data <- read.csv("./zomato.csv", stringsAsFactors = FALSE)
 
-if (!"Area" %in% colnames(data) || !"Cuisines" %in% colnames(data)) {
+if (!"Area" %in% names(data) || !"Cuisines" %in% names(data) || !"Rating" %in% names(data)) {
   quit(status = 1)
 }
 
-filtered <- subset(data, Area == location)
+# Filter data
+filtered <- subset(data, Area == location & !is.na(Cuisines) & !is.na(Rating))
 
 if (nrow(filtered) == 0) {
   quit(status = 1)
 }
 
-filtered$Cuisines <- na.omit(filtered$Cuisines)
+# Split cuisines
 cuisine_list <- strsplit(filtered$Cuisines, ",\\s*")
 
-# ---- PART 1: Most frequent individual cuisine ----
+# --------- 1. Most Frequent Individual Cuisine ---------
 flat_cuisines <- unlist(cuisine_list)
 freq_table <- sort(table(flat_cuisines), decreasing = TRUE)
 most_common_cuisine <- names(freq_table)[1]
+cat("Most Frequent Cuisine:", most_common_cuisine, "\n")
 
-cat(most_common_cuisine, "\n")
-
-# ---- PART 2: Most frequent cuisine combination ----
+# --------- 2. Most Frequent Combination via Apriori ---------
 suppressMessages(library(arules))
 
 transactions <- as(cuisine_list, "transactions")
@@ -37,11 +37,19 @@ rules <- apriori(
 )
 
 if (length(rules) == 0) {
-  cat("None\n")
-  quit(status = 0)
+  cat("Most Frequent Combination: None\n")
+} else {
+  top_rule <- sort(rules, by = "support", decreasing = TRUE)[1]
+  lhs <- labels(lhs(top_rule))[[1]]
+  rhs <- labels(rhs(top_rule))[[1]]
+  cat("Most Frequent Combination:", lhs, "+", rhs, "\n")
 }
 
-top_rule <- sort(rules, by = "support", decreasing = TRUE)[1]
-lhs <- labels(lhs(top_rule))[[1]]
-rhs <- labels(rhs(top_rule))[[1]]
-cat(lhs, "+", rhs, "\n")
+# --------- 3. Highest Rated Combination ---------
+# Group by cuisine sets and average the ratings
+filtered$CuisineSet <- sapply(cuisine_list, function(x) paste(sort(x), collapse = ", "))
+grouped <- aggregate(Rating ~ CuisineSet, data = filtered, FUN = mean)
+
+# Get the highest rated one
+top_rated <- grouped[which.max(grouped$Rating), ]
+cat("Highest Rated Combination:", top_rated$CuisineSet, "\n")

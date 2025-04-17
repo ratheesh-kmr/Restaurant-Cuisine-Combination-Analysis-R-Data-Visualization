@@ -8,4 +8,4 @@ node_modules
 zomato.csv
 
 # Location options file
-places_by_city.json
+./places_by_city.json
