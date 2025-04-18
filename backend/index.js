@@ -18,6 +18,7 @@ app.use(cors({
 }));
 
 app.use(router);
+app.use("/plots", express.static("public/plots"));
 
 app.listen(port, () => {
     console.log(`Backend listening at http://localhost:${port}`);

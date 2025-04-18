@@ -38,7 +38,7 @@ function processCSV() {
       }
 
       fs.writeFileSync(outputFile, JSON.stringify(finalOutput, null, 2));
-      console.log(`Saved places grouped by city to ${outputFile}`);
+      console.log(`Created ${outputFile} file`);
     });
 }
 

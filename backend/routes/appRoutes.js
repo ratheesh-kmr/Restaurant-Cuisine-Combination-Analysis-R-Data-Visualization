@@ -1,6 +1,8 @@
 import express from 'express';
-import { fetchLocations } from '../controller/locationController.js';
-import { handleLocationSubmit } from '../controller/CuisineAnalysisController.js';
+import { fetchLocations } from '../controllers/locationController.js';
+import {
+    handleCuisineCoreAnalysis
+  } from "../controllers/CuisineAnalysisController.js";
 
 const router = express.Router();
 
@@ -8,6 +10,6 @@ const router = express.Router();
 router.get('/locations', fetchLocations);
 
 // Handle location submission and analyze cuisine
-router.post("/submit", handleLocationSubmit);
+router.post("/analyze/core", handleCuisineCoreAnalysis);
 
 export default router;
