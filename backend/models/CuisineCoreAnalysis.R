@@ -1,105 +1,141 @@
+# Get the location argument passed from the command line
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) == 0) quit(status = 1)
 
-location <- args[1]
-data <- read.csv("./zomato.csv", stringsAsFactors = FALSE)
-cat("Loaded", nrow(data), "rows from CSV\n")
+# Load required libraries without cluttering console
+suppressMessages(library(arules))     # For Apriori algorithm
+suppressMessages(library(ggplot2))    # For plotting
+suppressMessages(library(jsonlite))   # For JSON output
 
-# Convert Ratings to numeric early
+# Get the location from the argument
+input_location <- args[1]
+
+# Read the dataset
+data <- read.csv("./zomato.csv", stringsAsFactors = FALSE)
+
+# Convert ratings to numeric (some values may be characters)
 data$Ratings <- suppressWarnings(as.numeric(data$Ratings))
 
-# Check for required columns
-if (!all(c("Area", "Cuisines", "Ratings") %in% names(data))) quit(status = 1)
+# Ensure all required columns exist
+required_columns <- c("Area", "Cuisines", "Ratings")
+if (!all(required_columns %in% names(data))) quit(status = 1)
 
-# Normalize Area and location input (trim spaces, make lowercase)
+# Normalize location strings (lowercase, trimmed)
 data$Area <- trimws(tolower(data$Area))
-location <- trimws(tolower(location))
+input_location <- trimws(tolower(input_location))
 
-# Debug: Show sample Area values
-cat("Sample Area values:\n")
-print(unique(head(data$Area, 10)))
+# Count how many rows match the input location
+matching_count <- sum(data$Area == input_location)
 
-# Check for matching location
-match_count <- sum(data$Area == location)
-cat("Filtered rows for", location, ":", match_count, "\n")
+# Filter the dataset to only matching rows with valid cuisines and ratings
+filtered_data <- subset(data, Area == input_location & !is.na(Cuisines) & !is.na(Ratings))
+if (nrow(filtered_data) == 0) quit(status = 1)
 
-# Filter the dataset
-filtered <- subset(data, Area == location & !is.na(Cuisines) & !is.na(Ratings))
-if (nrow(filtered) == 0) {
-  cat("No rows matched the location.\n")
-  quit(status = 1)
-}
+# Split cuisine strings into a list of cuisines for each row
+cuisine_list <- strsplit(filtered_data$Cuisines, ",\\s*")
 
-# --- Split cuisines ---
-cuisine_list <- strsplit(filtered$Cuisines, ",\\s*")
-
-# ---------------------
+# ------------------------------------------------------------
 # 1. Most Frequent Individual Cuisine
-# ---------------------
-flat_cuisines <- unlist(cuisine_list)
-freq_table <- sort(table(flat_cuisines), decreasing = TRUE)
-most_common_cuisine <- names(freq_table)[1]
-cat("\nMost Frequent Individual Cuisine:\n")
-cat("   •", most_common_cuisine, "\n")
+# ------------------------------------------------------------
+all_cuisines <- unlist(cuisine_list)
+cuisine_frequency <- sort(table(all_cuisines), decreasing = TRUE)
+most_frequent_cuisine <- names(cuisine_frequency)[1]
 
-# ---------------------
-# 2. Most Frequent Combination via Apriori
-# ---------------------
-suppressMessages(library(arules))
+# ------------------------------------------------------------
+# 2. Most Frequent Cuisine Combination (Apriori Algorithm)
+# ------------------------------------------------------------
+# Convert the list to transaction format
 transactions <- as(cuisine_list, "transactions")
 
+# Suppress Apriori’s console output
+sink(tempfile())  # redirect stdout
 rules <- suppressWarnings(apriori(
   transactions,
   parameter = list(supp = 0.1, conf = 0.6, minlen = 2, maxlen = 3)
 ))
+sink()  # restore stdout
 
-cat("\n📊 Most Frequent Cuisine Combination (Apriori):\n")
+# Pick the strongest frequent combination (if any rules found)
 if (length(rules) == 0) {
-  cat("   • None (no strong association found)\n")
+  most_common_combo <- NULL
 } else {
   top_rule <- sort(rules, by = "support", decreasing = TRUE)[1]
-  lhs_rule <- labels(lhs(top_rule))[[1]]
-  rhs_rule <- labels(rhs(top_rule))[[1]]
-  cat("   •", lhs_rule, "+", rhs_rule, "\n")
+  lhs <- labels(lhs(top_rule))[[1]]
+  rhs <- labels(rhs(top_rule))[[1]]
+  most_common_combo <- list(lhs = lhs, rhs = rhs)
 }
 
-# ---------------------
+# ------------------------------------------------------------
 # 3. Highest Rated Cuisine Combination
-# ---------------------
-filtered$CuisineSet <- sapply(cuisine_list, function(x) paste(sort(x), collapse = ", "))
-grouped <- aggregate(Ratings ~ CuisineSet, data = filtered, FUN = mean)
-top_rated <- grouped[which.max(grouped$Ratings), ]
-cat("\nHighest Rated Cuisine Combination:\n")
-cat("   •", top_rated$CuisineSet, "(", round(top_rated$Ratings, 2), ")\n")
+# ------------------------------------------------------------
+# Create a string version of sorted cuisines per row
+filtered_data$CuisineGroup <- sapply(cuisine_list, function(items) {
+  paste(sort(items), collapse = ", ")
+})
 
-# ---------------------
-# 4. Top 5 Frequent Cuisine Combinations by Avg Rating
-# ---------------------
-combo_freq <- table(filtered$CuisineSet)
-top5_combos <- names(sort(combo_freq, decreasing = TRUE))[1:5]
-top5_data <- subset(filtered, CuisineSet %in% top5_combos)
+# Group by cuisine group and compute average rating
+grouped_ratings <- aggregate(Ratings ~ CuisineGroup, data = filtered_data, FUN = mean)
+best_combo <- grouped_ratings[which.max(grouped_ratings$Ratings), ]
 
-ranked <- aggregate(Ratings ~ CuisineSet, data = top5_data, FUN = mean)
-ranked <- ranked[order(-ranked$Ratings), ]
+# ------------------------------------------------------------
+# 4. Top 5 Most Frequent Cuisine Groups (by Rating)
+# ------------------------------------------------------------
+# Count how often each cuisine group appears
+combo_counts <- table(filtered_data$CuisineGroup)
+top5_names <- names(sort(combo_counts, decreasing = TRUE))[1:5]
+top5_data <- subset(filtered_data, CuisineGroup %in% top5_names)
 
-cat("\nTop 5 Frequent Cuisine Combinations by Avg Rating:\n")
-for (i in 1:nrow(ranked)) {
-  cat(paste0("   ", i, ". ", ranked$CuisineSet[i], " — ", round(ranked$Ratings[i], 2), "\n"))
-}
+# Calculate average rating for each of the top 5 combinations
+top5_ratings <- aggregate(Ratings ~ CuisineGroup, data = top5_data, FUN = mean)
+top5_ratings <- top5_ratings[order(-top5_ratings$Ratings), ]
 
-suppressMessages(library(ggplot2))
+# Convert into list of {cuisines, rating} for JSON
+top5_list <- lapply(1:nrow(top5_ratings), function(i) {
+  list(
+    cuisines = top5_ratings$CuisineGroup[i],
+    rating = round(top5_ratings$Ratings[i], 2)
+  )
+})
 
-# ---- Save Top 10 Cuisines Bar Plot ----
-top10 <- head(freq_table, 10)
-df_top10 <- data.frame(Cuisine = names(top10), Count = as.numeric(top10))
+# ------------------------------------------------------------
+# 5. Plot Top 10 Most Common Individual Cuisines
+# ------------------------------------------------------------
+top10_cuisines <- head(cuisine_frequency, 10)
+top10_df <- data.frame(Cuisine = names(top10_cuisines), Count = as.numeric(top10_cuisines))
 
-p <- ggplot(df_top10, aes(x = reorder(Cuisine, -Count), y = Count, fill = Cuisine)) +
+# Build the bar plot
+plot <- ggplot(top10_df, aes(x = reorder(Cuisine, -Count), y = Count, fill = Cuisine)) +
   geom_bar(stat = "identity") +
   coord_flip() +
   theme_minimal() +
-  labs(title = paste("Top 10 Cuisines in", location), x = "Cuisine", y = "Count") +
+  labs(
+    title = paste("Top 10 Cuisines in", input_location),
+    x = "Cuisine",
+    y = "Count"
+  ) +
   theme(legend.position = "none")
 
-# Save image
-plot_file <- paste0("./public/plots/", gsub(", ", "_", location), "_top10.png")
-ggsave(filename = plot_file, plot = p, width = 6, height = 4, dpi = 300)
+# Save the plot image
+plot_filename <- paste0("./public/plots/", gsub(", ", "_", input_location), "_top10.png")
+ggsave(filename = plot_filename, plot = plot, width = 6, height = 4, dpi = 300)
+
+# ------------------------------------------------------------
+# Final Output as JSON
+# ------------------------------------------------------------
+output <- list(
+  location = input_location,
+  totalRows = nrow(data),
+  matchCount = matching_count,
+  sampleAreas = unique(head(data$Area, 10)),
+  mostFrequentCuisine = most_frequent_cuisine,
+  frequentCombo = most_common_combo,
+  highestRatedCombo = list(
+    cuisines = best_combo$CuisineGroup,
+    rating = round(best_combo$Ratings, 2)
+  ),
+  top5Combos = top5_list,
+  plotPath = plot_filename
+)
+
+# Print result as JSON for the backend
+cat(toJSON(output, auto_unbox = TRUE, pretty = TRUE))

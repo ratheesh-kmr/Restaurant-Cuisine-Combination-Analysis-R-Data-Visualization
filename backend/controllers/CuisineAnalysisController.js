@@ -1,35 +1,42 @@
-import { exec } from "child_process";
+import { spawn } from "child_process";
 
-// Utility to run any R script with location as argument
-const runRScript = (scriptName, location, res) => {
-  const scriptPath = `./models/${scriptName}`;
-  exec(`Rscript "${scriptPath}" "${location}"`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Rscript (${scriptName}) Error:\n`, stderr || stdout || error.message);
-      return res.status(500).json({
-        error: `R script failed: ${scriptName}`,
-        details: stderr || stdout || error.message,
-      });
-    }
+export const analyzeCuisine = (req, res) => {
+  const location = req.body.location;
 
-    // Add fallback if no output
-    if (!stdout.trim()) {
-      stdout = "No output from script.";
-    }
+  if (!location) {
+    console.error("❌ No location received in request");
+    return res.status(400).json({ error: "Location is required" });
+  }
 
-    const imageFile = `/plots/${location.replace(/, /g, "_")}_top10.png`;
-    res.json({
-      message: `Analysis complete: ${scriptName}`,
-      output: stdout,
-      image: imageFile
-    });
+  console.log("📦 Running R script for location:", location);
+
+  const r = spawn("Rscript", ["./models/CuisineCoreAnalysis.R", location]);
+
+  let output = "";
+  let errorOutput = "";
+
+  r.stdout.on("data", data => {
+    output += data.toString();
   });
-};
 
-// -------- Controllers --------
+  r.stderr.on("data", data => {
+    errorOutput += data.toString();
+  });
 
-export const handleCuisineCoreAnalysis = (req, res) => {
-  const { location } = req.body;
-  if (!location) return res.status(400).json({ error: "Area is required" });
-  runRScript("CuisineCoreAnalysis.R", location, res);
+  r.on("close", code => {
+    if (code !== 0) {
+      console.error("💥 R script exited with code:", code);
+      console.error("🔴 STDERR:\n", errorOutput);
+      return res.status(500).json({ error: errorOutput || "Unknown error from R script" });
+    }
+
+    try {
+      const result = JSON.parse(output);
+      return res.json(result);
+    } catch (parseError) {
+      console.error("🧨 JSON Parse Error:\n", parseError.message);
+      console.error("❓ Raw output:\n", output);
+      return res.status(500).json({ error: "Failed to parse R output", raw: output });
+    }
+  });
 };
