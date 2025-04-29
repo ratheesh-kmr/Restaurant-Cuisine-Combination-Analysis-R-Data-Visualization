@@ -28,7 +28,7 @@ export function useAnalyzer() {
       setResults(data)
     } catch (error) {
       console.error("Submission Error:", error)
-      alert("Failed to complete analysis. Please try again.")
+      alert("The Zomato dataset does not have enough data to generate an analysis for the given location.")
     } finally {
       setLoading(false)
     }

@@ -174,12 +174,6 @@ if ("AverageCost" %in% names(filtered_data)) {
   cluster_paths$averageCost <- save_cluster_plot(filtered_data$AverageCost, "Average Cost", location_slug)
 }
 
-# 7.3 Cluster by Veg/NonVeg (isVegOnly)
-if ("isVegOnly" %in% names(filtered_data)) {
-  filtered_data$isVegOnly <- as.numeric(filtered_data$isVegOnly)
-  cluster_paths$isVegOnly <- save_cluster_plot(filtered_data$isVegOnly, "Veg/Non-Veg", location_slug)
-}
-
 # 📤 Final JSON Output
 # ─────────────────────────────────────────────────────
 output <- list(
